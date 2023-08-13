@@ -613,6 +613,7 @@ class SQLite3toMySQL(SQLite3toMySQLAttributes):
                     sql,
                     (tuple(row) for row in self._sqlite_cur.fetchmany(self._chunk_size)),  # type: ignore
                 )
+                self._mysql.commit()
         else:
             self._mysql_cur.executemany(
                 sql,
