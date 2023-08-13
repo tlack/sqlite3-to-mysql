@@ -49,6 +49,7 @@ from .mysql_utils import MYSQL_INSERT_METHOD, MYSQL_TEXT_COLUMN_TYPES, mysql_sup
     help="Prompt for MySQL password",
 )
 @click.option("--mysql-password", default=None, help="MySQL password")
+@click.option("--mysql-socket", default=None, help="MySQL Unix socket")
 @click.option("-h", "--mysql-host", default="localhost", help="MySQL host. Defaults to localhost.")
 @click.option("-P", "--mysql-port", type=int, default=3306, help="MySQL port. Defaults to 3306.")
 @click.option("-S", "--skip-ssl", is_flag=True, help="Disable MySQL connection encryption.")
@@ -121,6 +122,7 @@ def cli(
     mysql_user: str,
     prompt_mysql_password: bool,
     mysql_password: str,
+    mysql_socket: str,
     mysql_database: str,
     mysql_host: str,
     mysql_port: int,
@@ -156,6 +158,7 @@ def cli(
             without_foreign_keys=without_foreign_keys or (sqlite_tables is not None and len(sqlite_tables) > 0),
             mysql_user=mysql_user,
             mysql_password=mysql_password or prompt_mysql_password,
+            mysql_socket=mysql_socket,
             mysql_database=mysql_database,
             mysql_host=mysql_host,
             mysql_port=mysql_port,

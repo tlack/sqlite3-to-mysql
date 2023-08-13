@@ -72,6 +72,8 @@ class SQLite3toMySQL(SQLite3toMySQLAttributes):
 
         self._mysql_port = kwargs.get("mysql_port") or 3306
 
+        self._mysql_socket = kwargs.get("mysql_socket") or None
+
         self._sqlite_tables = kwargs.get("sqlite_tables") or tuple()
 
         self._without_foreign_keys = len(self._sqlite_tables) > 0 or kwargs.get("without_foreign_keys") or False
@@ -130,14 +132,23 @@ class SQLite3toMySQL(SQLite3toMySQLAttributes):
         self._sqlite_table_xinfo_support = check_sqlite_table_xinfo_support(self._sqlite_version)
 
         try:
-            _mysql_connection = mysql.connector.connect(
-                user=self._mysql_user,
-                password=self._mysql_password,
-                host=self._mysql_host,
-                port=self._mysql_port,
-                ssl_disabled=self._mysql_ssl_disabled,
-                use_pure=True,
-            )
+            if self._mysql_socket:
+                _mysql_connection = mysql.connector.connect(
+                    user=self._mysql_user,
+                    password=self._mysql_password,
+                    unix_socket=self._mysql_socket,
+                    ssl_disabled=self._mysql_ssl_disabled,
+                    use_pure=True,
+                )
+            else:
+                _mysql_connection = mysql.connector.connect(
+                    user=self._mysql_user,
+                    password=self._mysql_password,
+                    host=self._mysql_host,
+                    port=self._mysql_port,
+                    ssl_disabled=self._mysql_ssl_disabled,
+                    use_pure=True,
+                )
             if isinstance(_mysql_connection, mysql.connector.MySQLConnection):
                 self._mysql = _mysql_connection
             else:
