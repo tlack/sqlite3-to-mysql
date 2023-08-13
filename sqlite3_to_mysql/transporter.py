@@ -116,6 +116,8 @@ class SQLite3toMySQL(SQLite3toMySQLAttributes):
 
         self._with_rowid = kwargs.get("with_rowid") or False
 
+        self._incremental = kwargs.get("incremental") or False
+
         sqlite3.register_adapter(Decimal, adapt_decimal)
         sqlite3.register_converter("DECIMAL", convert_decimal)
         sqlite3.register_adapter(timedelta, adapt_timedelta)
@@ -626,7 +628,19 @@ class SQLite3toMySQL(SQLite3toMySQLAttributes):
                     )
                 ),
             )
-        self._mysql.commit()
+            self._mysql.commit()
+
+    def _get_incremental_max_id(self, table_name):
+        self._logger.info(f"_get_incremental_max_id({table_name})")
+        self._mysql_cur.execute(
+            f"""
+            SELECT max(id) as max_id
+              from {safe_identifier_length(table_name)}
+            """,
+        )
+        row = self._mysql_cur.fetchone()
+        self._logger.info(f"{table_name}: syncing id > {row[0]}")
+        return row[0]
 
     def transfer(self) -> None:
         """The primary and only method with which we transfer all the data."""
@@ -662,27 +676,42 @@ class SQLite3toMySQL(SQLite3toMySQLAttributes):
                 # create the table
                 self._create_table(table["name"], transfer_rowid=transfer_rowid)
 
+                self._sqlite_cur.execute(f'PRAGMA table_info("{table["name"]}")')
+                columns: t.List[str] = [
+                    column["name"] for column in self._sqlite_cur.fetchall()
+                ]
+                self._logger.info(f'{table["name"]} columns = {columns}')
+
+                incremental_max_id = None
                 # truncate the table on request
                 if self._mysql_truncate_tables:
                     self._truncate_table(table["name"])
+                else:
+                    if self._incremental and "id" in columns:
+                        incremental_max_id = self._get_incremental_max_id(table["name"])
+
+                if incremental_max_id:
+                    incremental_where = ' WHERE id > {}'.format(incremental_max_id) 
+                else:
+                    incremental_where = ''
 
                 # get the size of the data
-                self._sqlite_cur.execute(f'SELECT COUNT(*) AS total_records FROM "{table["name"]}"')
+                self._sqlite_cur.execute(f'SELECT COUNT(*) AS total_records FROM "{table["name"]}"{incremental_where}')
                 total_records = int(dict(self._sqlite_cur.fetchone())["total_records"])
+
+                self._logger.info(f'{table["name"]}: {total_records} records')
 
                 # only continue if there is anything to transfer
                 if total_records > 0:
                     # populate it
                     self._logger.info("Transferring table %s", table["name"])
                     self._sqlite_cur.execute(
-                        '''SELECT {rowid} * FROM "{table_name}"'''.format(
+                        '''SELECT {rowid} * FROM "{table_name}"{inc_where}'''.format(
                             rowid='rowid as "rowid",' if transfer_rowid else "",
                             table_name=table["name"],
+                            inc_where=incremental_where
                         )
                     )
-                    columns: t.List[str] = [
-                        safe_identifier_length(column[0]) for column in self._sqlite_cur.description
-                    ]
                     if self._mysql_insert_method.upper() == "UPDATE":
                         sql: str = """
                             INSERT
