@@ -280,6 +280,8 @@ class SQLite3toMySQL(SQLite3toMySQLAttributes):
             match = self._valid_column_type(self._mysql_string_type)
             if match:
                 return match.group(0).upper() + length
+        if data_type == "TEXT_DATETIME":
+            return "DATETIME"
         if data_type == "DOUBLE PRECISION":
             return "DOUBLE"
         if data_type == "UNSIGNED BIG INT":
